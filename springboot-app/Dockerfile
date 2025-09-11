@@ -1,24 +1,27 @@
-# Étape 1 : builder le projet avec Maven
-FROM maven:3.9.6-eclipse-temurin-17 AS build
-WORKDIR /app
+# ==== Build stage ====
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /src
 
-# Copier le pom.xml et télécharger les dépendances en cache
+# Copier pom d'abord pour bénéficier du cache des deps
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+RUN mvn -q dependency:go-offline
 
-# Copier le code source et builder
+# Copier le code et builder
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN mvn -q package -DskipTests
 
-# Étape 2 : exécuter le jar
+# ==== Runtime stage ====
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 
-# Copier le jar généré depuis l'étape build
-COPY --from=build /app/target/*.jar app.jar
+# Copier le jar
+COPY --from=build /src/target/*.jar app.jar
 
-# Exposer le port
+# Env par défaut (surchargable au runtime)
+ENV JAVA_OPTS="" \
+    SERVER_PORT=8080
+
 EXPOSE 8080
 
-# Lancer l'application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Activer le port si Spring respecte SERVER_PORT, sinon laisser le default 8080 dans application.properties
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
